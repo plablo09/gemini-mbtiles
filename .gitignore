@@ -1,0 +1,54 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.lo
+*.la
+*.dll
+*.class
+*.exe
+*.out
+*.app
+*.bin
+*.obj
+*.pyc
+__pycache__/
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Environment variables
+.env
+.venv/
+venv/
+env/
+
+# Python-specific
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node-specific
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*~
+
+# Gemini CLI specific
+.gemini/

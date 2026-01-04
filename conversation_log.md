@@ -1,0 +1,67 @@
+# Project Conversation Log
+
+This log captures the planning and discussion for the Mexico City Cadastral Map project.
+
+---
+
+### User: Initial Request
+
+> I want to build a simple web application to visualize the cadastral data for Mexico City. From this simple application we will build something more complex later, but we will start with the basic. There are some things that are important:
+> 1.- I want the database to be served from duckdb, probably storing the data as geoparquet, but I’m open to suggestions on this.
+> 2.- The web map must be rendered using MapLibre GL JS, this implies that we are going to be querying duckdb to get the data as tiles
+> 3.- I want to use google cloud to deploy the application
+> 4.- Since we are going to be expanding on this application we need to use GitHub to host and manage the code, using CI workflows to deploy
+> 5.- I’m open to framework selection but I would like you to argue in favour of whatever you choose
+> With this information please first build an execution plan so we can iterate over that
+
+### Agent: Execution Plan
+
+Of course. This is an excellent project that touches on modern data engineering and web development practices. Using DuckDB for serving vector tiles is a particularly interesting and efficient approach.
+
+Here is a proposed execution plan, starting with the framework justification as requested.
+
+#### Framework Selection
+
+For the backend tile server, I propose using **FastAPI** (a Python framework). Here’s why:
+
+*   **Performance:** FastAPI is one of the fastest Python frameworks available.
+*   **Asynchronous Support:** It's built for `async` and `await`, allowing it to handle many concurrent requests efficiently.
+*   **Ease of Use & Developer Experience:** Simple syntax and automatic, interactive API documentation.
+*   **Excellent Ecosystem:** Python has first-class support for DuckDB (`duckdb` library) and robust libraries for geospatial operations.
+
+For the frontend, we will start with **vanilla HTML, CSS, and JavaScript**.
+
+*   **Simplicity:** A full-fledged framework like React or Vue would be overkill for the initial version.
+*   **Focus on the Core Problem:** This allows us to focus on the main challenge: the data pipeline from DuckDB to the map.
+*   **Extensibility:** This simple foundation can easily be migrated to a more complex framework later.
+
+---
+
+#### Execution Plan
+
+**Phase 1: Local Development & Core Functionality**
+1.  **Project Scaffolding & Version Control**
+2.  **Data Acquisition and Preparation**
+3.  **Backend: The DuckDB Tile Server**
+4.  **Frontend: The MapLibre GL JS Viewer**
+5.  **Containerization**
+
+**Phase 2: Deployment to Google Cloud with CI/CD**
+6.  **Google Cloud Project Setup**
+7.  **GitHub Actions CI/CD Workflow**
+8.  **Finalization and DNS (Optional)**
+
+### User: Clarification on FastAPI
+
+> Great, I just need to clarify one thing: what's the role of FastAPI in this case? Wouldn't it be simpler to have the tiles prerendered and just point the layer to the filesystem? Notice I'm not saying this is what we shpuld do, I'm just trying to understand better
+
+### Agent: Explanation of Dynamic Tiling
+
+That's an excellent question. The role of FastAPI in our plan is to act as a **dynamic tile server**.
+
+Instead of pre-generating millions of static tile files, we generate them on-the-fly from the source GeoParquet file the moment the map requests them.
+
+The key advantages of this **dynamic** approach are:
+*   **Incredible Flexibility:** To update the map's data, you just replace one file. The changes are reflected instantly.
+*   **Minimal Storage:** You only store the source data, which is vastly more efficient.
+*   **Powerful Future Capabilities:** This is the main benefit. We can easily add server-side filtering to create tiles on-the-fly based on user queries (e.g., show only properties of a certain size or value), which is impossible with a static tile set.
