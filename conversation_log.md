@@ -88,3 +88,14 @@ Those tools are **GitHub Actions**, which are scripts that run on GitHub's serve
 ### User: Ready to setup GitHub and proceed
 
 > Great, let me then prepare the repo on GitHub. And don'nt forget to update teh file where we are storing this chat
+
+### Agent & User: SSH Key and Remote Origin Debugging
+
+*The user set up the repo on GitHub but ran into `permission denied` errors.*
+1.  **Diagnosis:** The agent guided the user to test the SSH connection using `ssh -T git@github.com`, which failed, confirming an SSH key issue.
+2.  **Fix:** The agent instructed the user to run `gh ssh-key add` to upload the correct public key to GitHub.
+3.  **Remote URL Fix:** The agent provided the correct SSH remote URL (`git@github.com:plablo09/gemini-mbtiles.git`) and the user successfully configured it using `git remote add origin`.
+
+### User: Request to avoid passphrase prompt
+
+> Great, everything is setup now! I have commited the gitingore file and the first version of the convesation_log. Now, before we proceed I need you tu opdate the conversation log, commit the changes with aprropiate messages and push the changes to GitHub, for this last step, github is currently asking for the passphrase to the passkey, but I remember there is an easy way to avoud that
