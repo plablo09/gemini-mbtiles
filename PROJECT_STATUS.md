@@ -9,7 +9,7 @@ This document tracks the execution plan, progress, and key technical solutions f
 ### Phase 1: Local Development & Core Functionality
 -   [x] **Step 1: Project Scaffolding & Version Control**
 -   [x] **Step 2: Data Acquisition and Preparation**
--   [x] **Step 3: Backend: The DuckDB Tile Server**
+-   [ ] **Step 3: Backend: The DuckDB Tile Server** (Problematic - see Troubleshooting)
 -   [ ] **Step 4: Frontend: The MapLibre GL JS Viewer**
 -   [ ] **Step 5: Containerization**
 
@@ -22,9 +22,9 @@ This document tracks the execution plan, progress, and key technical solutions f
 
 ## 2. Current Status
 
-We have successfully completed the first three steps of Phase 1. The backend server is running locally and serving tiles from the prepared GeoParquet file.
+We have successfully completed the data acquisition and preparation step. However, the backend tile server for DuckDB is currently problematic due to issues with the `gdal` extension. The user is researching alternatives.
 
-**Next Step:** Begin **Phase 1, Step 4: Frontend: The MapLibre GL JS Viewer**.
+**Next Step:** User is researching solutions for the backend tile server.
 
 ---
 
@@ -55,9 +55,17 @@ This section documents important solutions to issues encountered during setup.
     1.  Unzipped the `CATASTRO.zip` file into the `data/` directory using the `unzip` command.
     2.  Modified `prepare_data.py` to read the `.shp` file directly from the filesystem, which worked successfully.
 
-### d. Uvicorn Background Server Failure
+### d. Uvicorn Background Server Failure (Initial)
 
--   **Problem:** The FastAPI server ran correctly in the foreground but crashed silently when started as a background process with `&`. Redirecting output to log files also resulted in empty files, suggesting the process was terminated before it could write any logs.
+-   **Problem:** The FastAPI server ran correctly in the foreground but crashed silently when started as a background process with `&`. Redirecting output to log files also resulted in empty files.
 -   **Solution:**
     1.  Used the `nohup` (no hang up) command for more robust background execution.
     2.  The successful command is: `nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 &` run from the `backend/` directory. The output is logged to `nohup.out`.
+
+### e. DuckDB `gdal` Extension & GeoParquet Reading Issues
+
+-   **Problem:** Persistent `500 Internal Server Error` when the backend attempted to serve tiles.
+    -   **Attempt 1 (DuckDB 1.4.3, direct file read):** Failed with `Binder Error: No extension found that is capable of reading the file...`. The `gdal` extension failed to download from DuckDB's extension server for `v1.4.3/osx_arm64`.
+    -   **Attempt 2 (DuckDB 1.4.3, `geopandas` in-memory load):** Refactored `main.py` to load GeoParquet into `geopandas` DataFrame at startup and query this in-memory DataFrame with DuckDB. Failed with `Not implemented Error: Data type 'geometry' not recognized`, as DuckDB could not interpret the `geopandas` geometry objects directly.
+    -   **Attempt 3 (DuckDB 0.10.3, direct file read):** Downgraded `duckdb` to `0.10.3` (hoping for `gdal` extension availability) and reverted `main.py` to the original direct file-reading logic with `INSTALL gdal; LOAD gdal;`. Still resulted in `HTTP Error: Failed to download extension "gdal"` for `v0.10.3/osx_arm64`.
+-   **Current Status:** The core issue is that the DuckDB `gdal` extension for reading GeoParquet files is not reliably available for download on `osx_arm64` via the DuckDB extension server for the versions tested. This prevents direct spatial querying of GeoParquet files by DuckDB in the current setup. The user is now researching alternative solutions for this backend data access.
