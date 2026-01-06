@@ -54,5 +54,5 @@ package-lock.json
 .gemini/
 
 # Project data
-data/CATASTRO.zip
-data/CATASTRO/
+data/*
+!data/.gitkeep
