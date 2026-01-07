@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `backend/` holds the FastAPI tile server (`main.py`) and DuckDB bootstrap logic (`db.py`).
 - `frontend/` contains the MapLibre viewer (`index.html`, `map.js`, `style.css`).
-- `data/` stores inputs and outputs; `data/mexico_city.geoparquet` is expected to already exist locally.
+- `data/` stores inputs and outputs; `data/mexico_city.cleaned.3857.geoparquet` is expected to already exist locally.
 - Root scripts include `prepare_data.py` (regenerate GeoParquet if needed) and `test_duckdb.py` (manual DuckDB checks).
 - Tests live in `backend/test_main.py` and use the FastAPI test client.
 
@@ -11,7 +11,7 @@
 - All commands must run inside an activated Python virtualenv.
 - `python3 -m venv .venv && source .venv/bin/activate` create and activate the venv.
 - `pip install -r requirements.txt` install Python dependencies into the venv.
-- `pytest` run backend tests (expects `data/mexico_city.geoparquet` to exist).
+- `pytest` run backend tests (expects `data/mexico_city.cleaned.3857.geoparquet` to exist).
 - From repo root, `nohup ./.venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 &` starts the API in the background (logs to `uvicorn.log`).
 - From `frontend/`, `python3 -m http.server` serves the viewer for local development.
 

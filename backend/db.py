@@ -5,7 +5,7 @@ import os
 # Use an in-memory database for this example
 # For production, you might want to use a file-backed database
 DB_PATH = ":memory:"
-GEOPARQUET_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mexico_city.geoparquet")
+GEOPARQUET_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mexico_city.cleaned.3857.geoparquet")
 TABLE_NAME = "mexico_city"
 
 # --- Database Connection ---
