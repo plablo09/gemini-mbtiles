@@ -1,4 +1,3 @@
-import math
 import pytest
 from fastapi.testclient import TestClient
 import gzip
@@ -27,12 +26,12 @@ def test_health_check_ok():
 # --- Tile Endpoint Tests ---
 
 VALID_TILE_Z = 14
+WEB_MERCATOR_HALF_WORLD = 20037508.342789244
 
-def _tile_coords_for_point(lon: float, lat: float, z: int) -> tuple[int, int]:
+def _tile_coords_for_point_3857(x: float, y: float, z: int) -> tuple[int, int]:
     n = 2 ** z
-    xtile = int((lon + 180.0) / 360.0 * n)
-    lat_rad = math.radians(lat)
-    ytile = int((1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n)
+    xtile = int((x + WEB_MERCATOR_HALF_WORLD) / (2 * WEB_MERCATOR_HALF_WORLD) * n)
+    ytile = int((WEB_MERCATOR_HALF_WORLD - y) / (2 * WEB_MERCATOR_HALF_WORLD) * n)
     return xtile, ytile
 
 def test_get_valid_tile():
@@ -43,9 +42,9 @@ def test_get_valid_tile():
             f"SELECT ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext) "
             f"FROM (SELECT ST_Extent(geometry) AS ext FROM {TABLE_NAME});"
         ).fetchone()
-        lon = (xmin + xmax) / 2
-        lat = (ymin + ymax) / 2
-        tile_x, tile_y = _tile_coords_for_point(lon, lat, VALID_TILE_Z)
+        x = (xmin + xmax) / 2
+        y = (ymin + ymax) / 2
+        tile_x, tile_y = _tile_coords_for_point_3857(x, y, VALID_TILE_Z)
         response = client.get(f"/tiles/{VALID_TILE_Z}/{tile_x}/{tile_y}.pbf")
         
         # Expect a 200 OK response

@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
 from .db import init_db, close_db, get_db_connection, TABLE_NAME
-import math
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,14 +36,6 @@ LAYER_NAME = "cadastre_layer"
 MIN_ZOOM = 8
 MAX_ZOOM = 18 # Matches frontend maxzoom
 
-def _tile_bounds_4326(z: int, x: int, y: int) -> tuple[float, float, float, float]:
-    n = 2 ** z
-    lon_min = x / n * 360.0 - 180.0
-    lon_max = (x + 1) / n * 360.0 - 180.0
-    lat_max = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
-    lat_min = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
-    return lon_min, lat_min, lon_max, lat_max
-
 @app.get("/")
 def read_root():
     """Returns a welcome message."""
@@ -74,17 +65,15 @@ def get_tile(z: int, x: int, y: int):
     db_con = get_db_connection()
 
     try:
-        lon_min, lat_min, lon_max, lat_max = _tile_bounds_4326(z, x, y)
         # The core MVT generation query
         # This query follows the pattern described in GeneralSpecs.md
         query = f"""
             WITH
             bounds_box AS (
-                -- 1. Manually create a BOX_2D in EPSG:4326
-                SELECT ST_MakeBox2D(
-                    ST_Point({lon_min}, {lat_min}),
-                    ST_Point({lon_max}, {lat_max})
-                ) AS box
+                -- 1. Use Web Mercator tile bounds (EPSG:3857)
+                SELECT
+                    ST_TileEnvelope({z}, {x}, {y}) AS geom,
+                    ST_Extent(ST_TileEnvelope({z}, {x}, {y})) AS box
             ),
             features AS (
                 -- 2. Select features that intersect with the tile bounds
@@ -101,7 +90,7 @@ def get_tile(z: int, x: int, y: int):
                         true  -- Clip Geom
                     ) AS mvt_geom
                 FROM {TABLE_NAME} t, bounds_box
-                WHERE ST_Intersects(t.geometry, bounds_box.box)
+                WHERE ST_Intersects(t.geometry, bounds_box.geom)
             )
             -- 5. Aggregate the clipped geometries into a single MVT layer
             SELECT
