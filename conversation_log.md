@@ -99,3 +99,20 @@ Those tools are **GitHub Actions**, which are scripts that run on GitHub's serve
 ### User: Request to avoid passphrase prompt
 
 > Great, everything is setup now! I have commited the gitingore file and the first version of the convesation_log. Now, before we proceed I need you tu opdate the conversation log, commit the changes with aprropiate messages and push the changes to GitHub, for this last step, github is currently asking for the passphrase to the passkey, but I remember there is an easy way to avoud that
+
+---
+### User: Resume work and fix tile generation issues
+
+> We are going to pick up on the work we were doing in this repo... Please review everything so you are up to date with the work
+
+### Agent: Status review and merge conflict fix
+
+*Reviewed repo state, resolved `GeneralSpecs.md` merge conflict markers.*
+
+### Agent: Geometry validation and cleanup
+
+*Checked invalid geometries in `data/mexico_city.geoparquet` (7 invalid). Cleaned with `ST_MakeValid` and confirmed the cleaned file has 0 invalid geometries.*
+
+### Agent: Preproject to Web Mercator for tile serving
+
+*Updated the pipeline to produce `data/mexico_city.cleaned.3857.geoparquet`, reprojected from the cleaned file, and revalidated geometries after reprojection. Backend and tests now use 3857 data and `ST_TileEnvelope` in tile queries. Tests passed (`pytest`).*
