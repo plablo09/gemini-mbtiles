@@ -1,7 +1,9 @@
+import math
 import pytest
 from fastapi.testclient import TestClient
 import gzip
 from backend.main import app
+from backend.db import get_db_connection, TABLE_NAME
 
 # By using a 'with' statement, we ensure that the app's lifespan events
 # (startup and shutdown) are triggered during the tests.
@@ -24,15 +26,27 @@ def test_health_check_ok():
 
 # --- Tile Endpoint Tests ---
 
-# A known tile coordinate that should contain data for Mexico City.
 VALID_TILE_Z = 14
-VALID_TILE_X = 4203
-VALID_TILE_Y = 6799
+
+def _tile_coords_for_point(lon: float, lat: float, z: int) -> tuple[int, int]:
+    n = 2 ** z
+    xtile = int((lon + 180.0) / 360.0 * n)
+    lat_rad = math.radians(lat)
+    ytile = int((1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n)
+    return xtile, ytile
 
 def test_get_valid_tile():
     """Test requesting a valid, non-empty tile."""
     with TestClient(app) as client:
-        response = client.get(f"/tiles/{VALID_TILE_Z}/{VALID_TILE_X}/{VALID_TILE_Y}.pbf")
+        con = get_db_connection()
+        xmin, ymin, xmax, ymax = con.execute(
+            f"SELECT ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext) "
+            f"FROM (SELECT ST_Extent(geometry) AS ext FROM {TABLE_NAME});"
+        ).fetchone()
+        lon = (xmin + xmax) / 2
+        lat = (ymin + ymax) / 2
+        tile_x, tile_y = _tile_coords_for_point(lon, lat, VALID_TILE_Z)
+        response = client.get(f"/tiles/{VALID_TILE_Z}/{tile_x}/{tile_y}.pbf")
         
         # Expect a 200 OK response
         assert response.status_code == 200
@@ -52,15 +66,9 @@ def test_get_empty_tile():
         # z=14, x=0, y=0 is in the middle of the Atlantic Ocean
         response = client.get("/tiles/14/0/0.pbf")
         
-        # For empty tiles, it's common practice for MVT servers to return 200 OK with an empty MVT
-        assert response.status_code == 200
-        
-        # Check content type
-        assert response.headers["content-type"] == "application/vnd.mapbox-vector-tile"
-
-        # The content should be a very small, valid empty MVT
-        assert len(response.content) > 0
-        assert len(response.content) < 100 # An empty MVT is typically very small (e.g., < 50 bytes)
+        # For empty tiles, we return 204 No Content to signal an empty tile
+        assert response.status_code == 204
+        assert response.content == b""
 
 
 def test_get_tile_invalid_zoom():

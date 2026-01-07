@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
 from .db import init_db, close_db, get_db_connection, TABLE_NAME
+import math
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,14 +21,29 @@ app = FastAPI(
     description="Serves vector tiles of the Mexico City cadastral map.",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
 app.add_middleware(GZipMiddleware, minimum_size=1000) # Add GZipMiddleware
 
 # --- Constants ---
 # The name of the layer in the MVT tile
-LAYER_NAME = "cadastre"
+LAYER_NAME = "cadastre_layer"
 # The minimum and maximum zoom levels this server will generate tiles for
 MIN_ZOOM = 8
-MAX_ZOOM = 22 # A high value to allow deep zooming
+MAX_ZOOM = 18 # Matches frontend maxzoom
+
+def _tile_bounds_4326(z: int, x: int, y: int) -> tuple[float, float, float, float]:
+    n = 2 ** z
+    lon_min = x / n * 360.0 - 180.0
+    lon_max = (x + 1) / n * 360.0 - 180.0
+    lat_max = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    lat_min = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
+    return lon_min, lat_min, lon_max, lat_max
 
 @app.get("/")
 def read_root():
@@ -57,46 +74,45 @@ def get_tile(z: int, x: int, y: int):
     db_con = get_db_connection()
 
     try:
+        lon_min, lat_min, lon_max, lat_max = _tile_bounds_4326(z, x, y)
         # The core MVT generation query
         # This query follows the pattern described in GeneralSpecs.md
         query = f"""
             WITH
-            bounds_geom AS (
-                -- 1. Calculate the tile envelope as a GEOMETRY
-                SELECT ST_TileEnvelope({z}, {x}, {y}) AS geom
-            ),
             bounds_box AS (
-                -- 2. Manually create a BOX_2D from the envelope's coordinates
-                --    This is the crucial step to ensure the correct type is passed to ST_AsMVTGeom
+                -- 1. Manually create a BOX_2D in EPSG:4326
                 SELECT ST_MakeBox2D(
-                    ST_Point(ST_XMin(geom), ST_YMin(geom)),
-                    ST_Point(ST_XMax(geom), ST_YMax(geom))
+                    ST_Point({lon_min}, {lat_min}),
+                    ST_Point({lon_max}, {lat_max})
                 ) AS box
-                FROM bounds_geom
             ),
             features AS (
-                -- 3. Select features that intersect with the tile envelope
+                -- 2. Select features that intersect with the tile bounds
                 SELECT
                     t.gid,
                     t.clave,
                     t.uso_suelo,
-                    -- 4. Use the full ST_AsMVTGeom signature for robustness, passing the BOX_2D
+                    -- 3. Use the full ST_AsMVTGeom signature for robustness, passing the BOX_2D
                     ST_AsMVTGeom(
-                        ST_Transform(t.geometry, 'EPSG:4326', 'EPSG:3857'), -- Project to Web Mercator
+                        t.geometry,
                         (SELECT box FROM bounds_box), -- Pass the pre-calculated BOX_2D
                         4096, -- Extent
                         256,  -- Buffer
                         true  -- Clip Geom
                     ) AS mvt_geom
-                FROM {TABLE_NAME} t, bounds_geom
-                WHERE ST_Intersects(ST_Transform(t.geometry, 'EPSG:4326', 'EPSG:3857'), bounds_geom.geom)
+                FROM {TABLE_NAME} t, bounds_box
+                WHERE ST_Intersects(t.geometry, bounds_box.box)
             )
             -- 5. Aggregate the clipped geometries into a single MVT layer
-            SELECT ST_AsMVT(sub, '{LAYER_NAME}')
+            SELECT
+                CASE
+                    WHEN COUNT(*) = 0 THEN NULL
+                    ELSE ST_AsMVT(sub, '{LAYER_NAME}')
+                END AS tile
             FROM (
                 SELECT gid, clave, uso_suelo, mvt_geom FROM features
-            ) AS sub
-            WHERE mvt_geom IS NOT NULL;
+                WHERE mvt_geom IS NOT NULL
+            ) AS sub;
         """
 
         # Execute the query
