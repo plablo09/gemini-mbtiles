@@ -1,91 +1,122 @@
-from fastapi import FastAPI, Response, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-import duckdb
-import os
-import math
+from fastapi import FastAPI, Response
+from contextlib import asynccontextmanager
+from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
+from .db import init_db, close_db, get_db_connection, TABLE_NAME
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup event
+    print("Starting up the application...")
+    init_db()
+    yield
+    # Shutdown event
+    print("Shutting down the application...")
+    close_db()
 
-# Allow CORS for local development (adjust in production)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+app = FastAPI(
+    title="Mexico City Cadastral Map Tile Server",
+    lifespan=lifespan,
+    description="Serves vector tiles of the Mexico City cadastral map.",
 )
 
-# Define the path to your GeoParquet file
-# The path is relative to where the backend app is run from (backend/ directory)
-# So, from backend/, ../data/mexico_city.geoparquet
-GEOPARQUET_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mexico_city.geoparquet")
-GEOPARQUET_PATH = os.path.abspath(GEOPARQUET_PATH) # Ensure absolute path
+app.add_middleware(GZipMiddleware, minimum_size=1000) # Add GZipMiddleware
 
-# Initialize DuckDB connection
-# We'll use a in-memory database for connection, as we are reading external file
-# Using a context manager for each request ensures connection is closed properly
-def get_duckdb_conn():
-    conn = duckdb.connect(database=':memory:')
-    conn.execute("INSTALL spatial;")
-    conn.execute("LOAD spatial;")
-    return conn
+# --- Constants ---
+# The name of the layer in the MVT tile
+LAYER_NAME = "cadastre"
+# The minimum and maximum zoom levels this server will generate tiles for
+MIN_ZOOM = 8
+MAX_ZOOM = 22 # A high value to allow deep zooming
 
 @app.get("/")
-async def read_root():
-    return {"message": "Welcome to the Mexico City Cadastral Tile Server!"}
+def read_root():
+    """Returns a welcome message."""
+    return {"message": "Welcome to the Mexico City Cadastral Map Tile Server!"}
 
-@app.get("/tiles/{z}/{x}/{y}.pbf")
-async def get_vector_tile(z: int, x: int, y: int):
+@app.get("/health")
+def health_check():
     """
-    Serves Mapbox Vector Tiles (MVT) for the cadastral data.
+    Performs a health check on the database connection and returns the status.
     """
-    if not (0 <= z <= 20 and 0 <= x < (1 << z) and 0 <= y < (1 << z)):
-        raise HTTPException(status_code=400, detail="Invalid tile coordinates")
+    try:
+        # A simple check to ensure the connection is alive and can execute a query
+        con = get_db_connection()
+        con.execute("SELECT 1;").fetchone()
+        return {"status": "ok", "message": "Database connection is healthy."}
+    except Exception as e:
+        return {"status": "error", "message": f"Database connection failed: {e}"}
+
+@app.get("/tiles/{z}/{x}/{y}.pbf", response_class=Response)
+def get_tile(z: int, x: int, y: int):
+    """
+    Generates and returns a Mapbox Vector Tile (MVT) for the given zoom, x, and y coordinates.
+    """
+    if not (MIN_ZOOM <= z <= MAX_ZOOM):
+        return Response(status_code=404, content=f"Zoom level {z} is outside the supported range [{MIN_ZOOM}, {MAX_ZOOM}].")
+
+    db_con = get_db_connection()
 
     try:
-        with get_duckdb_conn() as conn:
-            # Construct the SQL query to generate the MVT
-            # ST_TileEnvelope(z, x, y) generates the bounding box for the tile in Web Mercator (EPSG:3857)
-            # ST_AsMVTGeom clips and transforms geometries to the tile's grid
-            # ST_AsMVT encodes the results into a vector tile
-            
-            # The 'geom' column is assumed to be in EPSG:4326 (WGS84) from the GeoParquet
-            # We need to transform it to EPSG:3857 for ST_AsMVTGeom to work correctly
-            
-            # Note: The spatial index (if any) in the GeoParquet is crucial for performance.
-            # DuckDB automatically uses it if present.
-
-            query = f"""
-            SELECT ST_AsMVT(
-                (SELECT
-                    -- Select all attributes you want to include in the tile
-                    -- and transform geometry
-                    *,
+        # The core MVT generation query
+        # This query follows the pattern described in GeneralSpecs.md
+        query = f"""
+            WITH
+            bounds_geom AS (
+                -- 1. Calculate the tile envelope as a GEOMETRY
+                SELECT ST_TileEnvelope({z}, {x}, {y}) AS geom
+            ),
+            bounds_box AS (
+                -- 2. Manually create a BOX_2D from the envelope's coordinates
+                --    This is the crucial step to ensure the correct type is passed to ST_AsMVTGeom
+                SELECT ST_MakeBox2D(
+                    ST_Point(ST_XMin(geom), ST_YMin(geom)),
+                    ST_Point(ST_XMax(geom), ST_YMax(geom))
+                ) AS box
+                FROM bounds_geom
+            ),
+            features AS (
+                -- 3. Select features that intersect with the tile envelope
+                SELECT
+                    t.gid,
+                    t.clave,
+                    t.uso_suelo,
+                    -- 4. Use the full ST_AsMVTGeom signature for robustness, passing the BOX_2D
                     ST_AsMVTGeom(
-                        ST_Transform(geometry, 'EPSG:4326', 'EPSG:3857'), -- Transform to Web Mercator
-                        ST_TileEnvelope({z}, {x}, {y}),
-                        4096, -- Tile extent (usually 4096)
-                        256,  -- Buffer (usually 256 or 0)
-                        true  -- Clip geometries
-                    ) AS geometry -- Rename to 'geometry' for MVT convention
-                FROM '{GEOPARQUET_PATH}'
-                WHERE
-                    -- Filter geometries that intersect with the tile's bounding box (in EPSG:4326)
-                    ST_Intersects(geometry, ST_Transform(ST_TileEnvelope({z}, {x}, {y}), 'EPSG:3857', 'EPSG:4326'))
-                ), 'cadastre_layer', 4096, 'geometry'
-            ) AS mvt;
-            """
-            
-            result = conn.execute(query).fetchval()
-            
-            if result is None:
-                # Return an empty PBF if no features are found for the tile
-                # This is standard behavior for empty vector tiles
-                return Response(content=b'', media_type="application/vnd.mapbox-vector-tile")
+                        ST_Transform(t.geometry, 'EPSG:4326', 'EPSG:3857'), -- Project to Web Mercator
+                        (SELECT box FROM bounds_box), -- Pass the pre-calculated BOX_2D
+                        4096, -- Extent
+                        256,  -- Buffer
+                        true  -- Clip Geom
+                    ) AS mvt_geom
+                FROM {TABLE_NAME} t, bounds_geom
+                WHERE ST_Intersects(ST_Transform(t.geometry, 'EPSG:4326', 'EPSG:3857'), bounds_geom.geom)
+            )
+            -- 5. Aggregate the clipped geometries into a single MVT layer
+            SELECT ST_AsMVT(sub, '{LAYER_NAME}')
+            FROM (
+                SELECT gid, clave, uso_suelo, mvt_geom FROM features
+            ) AS sub
+            WHERE mvt_geom IS NOT NULL;
+        """
 
-            return Response(content=result, media_type="application/vnd.mapbox-vector-tile")
+        # Execute the query
+        result = db_con.execute(query).fetchone()
+        
+        if not result or not result[0]:
+            # If no features are in this tile, return an empty response with a 204 status
+            return Response(status_code=204)
+
+        # The result is a bytes object containing the MVT data (not gzipped by DuckDB)
+        raw_tile_data = result[0]
+        
+        # FastAPI's GZipMiddleware will handle the gzipping and Content-Encoding header
+        return Response(
+            content=raw_tile_data,
+            media_type="application/vnd.mapbox-vector-tile"
+            # No manual Content-Encoding: gzip header here, GZipMiddleware handles it
+        )
 
     except Exception as e:
-        print(f"Error serving tile {z}/{x}/{y}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing tile: {e}")
-
+        # Log the error and return an internal server error
+        print(f"Error generating tile for z={z}, x={x}, y={y}: {e}")
+        return Response(status_code=500, content=f"An internal error occurred: {e}")

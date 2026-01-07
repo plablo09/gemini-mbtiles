@@ -6,7 +6,10 @@ Used for:
 
 ---
 
+<<<<<<< HEAD
 ## 5. Server startup lifecycle
+=======
+>>>>>>> 11502596e4ca85a6b347223fe529e96877f8b3a6
 
 ### Phase 1 — Configuration load
 

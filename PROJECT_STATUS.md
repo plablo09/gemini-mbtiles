@@ -32,21 +32,7 @@ We have successfully completed the data acquisition and preparation step. Howeve
 
 This section documents important solutions to issues encountered during setup.
 
-### a. GitHub Authentication with Passkeys
 
--   **Problem:** User's passkey-enabled GitHub account prevented standard password authentication for `git push`.
--   **Solution:**
-    1.  Installed the official GitHub CLI: `brew install gh`.
-    2.  Authenticated using `gh auth login` with the SSH protocol.
-    3.  Resolved a "Permission denied" error by explicitly adding the local SSH key to GitHub: `gh ssh-key add`.
-    4.  Configured the Git remote to use the SSH URL: `git remote add origin git@github.com:plablo09/gemini-mbtiles.git`.
-
-### b. SSH Passphrase Prompts
-
--   **Problem:** Every `git push` required re-entering the SSH key passphrase.
--   **Solution:**
-    1.  Created a `~/.ssh/config` file to instruct SSH to use the macOS Keychain to store the passphrase automatically.
-    2.  The user ran `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` to add the key's passphrase to the Keychain.
 
 ### c. Data Preparation Script
 
