@@ -11,7 +11,7 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   [x] **Step 2: Data Acquisition and Preparation**
 -   [x] **Step 3: Backend: The DuckDB Tile Server** (Optimized with index, simplification, caching)
 -   [x] **Step 4: Frontend: The MapLibre GL JS Viewer** (Basemap added, performance tuned)
--   [ ] **Step 5: Containerization**
+-   [x] **Step 5: Containerization**
 
 ### Phase 2: Deployment to Google Cloud with CI/CD
 -   [ ] **Step 6: Google Cloud Project Setup**
@@ -69,6 +69,19 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   **Zombie Processes:** Old `uvicorn` processes were lingering and holding ports.
     -   *Fix:* Terminated processes using `pkill -f uvicorn` and verified with `ps`.
 -   **Python Compatibility:** Fixed 3.9 `bytes | None` syntax error by switching to `Optional[bytes]`.
+
+### Session: Jan 8, 2026 (Evening) - Containerization
+
+#### 1. Dockerfile Implementation
+-   **Approach:** Created a slim Python-based image that serves both the FastAPI backend and the static frontend.
+-   **Data:** The `data/mexico_city.duckdb` file is copied into the image for a self-contained deployment.
+-   **Optimizations:**
+    -   Updated `.dockerignore` to exclude large source data files (`.geoparquet`, `.zip`), reducing build context from ~3GB to ~1.3GB.
+    -   Verified that `FastAPI` correctly serves `frontend/` as static files within the container.
+-   **Verification:**
+    -   Built image `gemini-mbtiles`.
+    -   Ran container and verified `/health` and `/tiles/14/...` endpoints via `curl`.
+    -   Confirmed frontend assets (`index.html`, `style.css`, `map.js`) are served.
 
 ### Prior Troubleshooting (Summary)
 -   **Data Prep:** `zip://` URIs failed; switched to unzipping locally.

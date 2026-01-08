@@ -12,3 +12,7 @@ AGENTS.md
 conversation_log.md
 GeneralSpecs.md
 PROJECT_STATUS.md
+
+# Ignore large data files but allow the directory structure if needed
+data/*
+!data/mexico_city.duckdb
