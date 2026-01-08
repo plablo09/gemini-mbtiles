@@ -1,23 +1,41 @@
 import duckdb
 import os
+import queue
+from contextlib import contextmanager
 
 # --- Constants ---
-# Use an in-memory database for this example
-# For production, you might want to use a file-backed database
-DB_PATH = ":memory:"
+# Use a file-backed database so multiple connections share the same data
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mexico_city.duckdb")
 GEOPARQUET_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "mexico_city.cleaned.3857.geoparquet")
 TABLE_NAME = "mexico_city"
+POOL_SIZE = 4
 
 # --- Database Connection ---
-# A global connection object that will be initialized at startup
-con: duckdb.DuckDBPyConnection = None
+# A global connection pool initialized at startup
+_pool: queue.Queue = None
 
 def get_db_connection() -> duckdb.DuckDBPyConnection:
-    """Returns the application-wide DuckDB connection."""
-    global con
-    if con is None:
-        raise RuntimeError("Database connection has not been initialized. Call init_db() at application startup.")
-    return con
+    """Borrows a DuckDB connection from the pool."""
+    global _pool
+    if _pool is None:
+        raise RuntimeError("Database connection pool has not been initialized. Call init_db() at application startup.")
+    return _pool.get()
+
+def release_db_connection(conn: duckdb.DuckDBPyConnection):
+    """Returns a DuckDB connection to the pool."""
+    global _pool
+    if _pool is None:
+        raise RuntimeError("Database connection pool has not been initialized. Call init_db() at application startup.")
+    _pool.put(conn)
+
+@contextmanager
+def db_connection():
+    """Context manager for a pooled DuckDB connection."""
+    conn = get_db_connection()
+    try:
+        yield conn
+    finally:
+        release_db_connection(conn)
 
 def _perform_sanity_checks(db_con: duckdb.DuckDBPyConnection):
     """
@@ -63,49 +81,63 @@ def _perform_sanity_checks(db_con: duckdb.DuckDBPyConnection):
     print("--- All database sanity checks passed successfully! ---")
 
 
+def _create_connection() -> duckdb.DuckDBPyConnection:
+    """
+    Creates a DuckDB connection with spatial extension loaded.
+    """
+    conn = duckdb.connect(database=DB_PATH, read_only=False)
+    conn.execute("INSTALL spatial;")
+    conn.execute("LOAD spatial;")
+    return conn
+
 def init_db():
     """
     Initializes the DuckDB connection, loads the spatial extension,
     creates the table from the GeoParquet file, and performs sanity checks.
     This function should be called once at application startup.
     """
-    global con
-    
+    global _pool
+
     print("Initializing database connection...")
-    con = duckdb.connect(database=DB_PATH, read_only=False)
-    
-    # Install and load the spatial extension
-    print("Installing and loading spatial extension...")
-    con.execute("INSTALL spatial;")
-    con.execute("LOAD spatial;")
-    
+    bootstrap_con = _create_connection()
+
     # Perform sanity checks *after* loading the extension
-    _perform_sanity_checks(con)
+    _perform_sanity_checks(bootstrap_con)
 
     # Load data from GeoParquet file
     print(f"Loading data from {GEOPARQUET_PATH} into table '{TABLE_NAME}'...")
     if not os.path.exists(GEOPARQUET_PATH):
         raise FileNotFoundError(f"GeoParquet file not found at: {GEOPARQUET_PATH}. Please run prepare_data.py first.")
     
-    con.execute(f"""
+    bootstrap_con.execute(f"""
         CREATE OR REPLACE TABLE {TABLE_NAME} AS
         SELECT * FROM read_parquet('{GEOPARQUET_PATH}');
     """)
 
     # Create spatial index
     print("Creating spatial index...")
-    con.execute(f"CREATE INDEX IF NOT EXISTS idx_geometry ON {TABLE_NAME} USING RTREE (geometry);")
+    bootstrap_con.execute(f"CREATE INDEX IF NOT EXISTS idx_geometry ON {TABLE_NAME} USING RTREE (geometry);")
     
     # Verify data loading
-    count = con.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};").fetchone()[0]
+    count = bootstrap_con.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};").fetchone()[0]
     print(f"Successfully loaded {count} features into '{TABLE_NAME}'.")
-    
+
     print("Database initialization complete.")
+    bootstrap_con.close()
+
+    print(f"Creating connection pool with size {POOL_SIZE}...")
+    _pool = queue.Queue(maxsize=POOL_SIZE)
+    for _ in range(POOL_SIZE):
+        conn = _create_connection()
+        _perform_sanity_checks(conn)
+        _pool.put(conn)
 
 def close_db():
     """Closes the database connection. Should be called at application shutdown."""
-    global con
-    if con:
-        print("Closing database connection...")
-        con.close()
-        con = None
+    global _pool
+    if _pool:
+        print("Closing database connection pool...")
+        while not _pool.empty():
+            conn = _pool.get()
+            conn.close()
+        _pool = None

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
 from functools import lru_cache
 from typing import Optional
-from .db import init_db, close_db, get_db_connection, TABLE_NAME
+from .db import init_db, close_db, db_connection, TABLE_NAME
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,52 +57,51 @@ def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
     """
     Cached function to generate MVT data.
     """
-    db_con = get_db_connection()
     simplification_tolerance = get_simplification_tolerance(z)
 
     try:
-        # The core MVT generation query
-        # We removed the area filter to ensure full coverage
-        query = f"""
-            WITH
-            bounds_box AS (
-                -- 1. Use Web Mercator tile bounds (EPSG:3857)
-                -- We compute both the geometry (for intersection) and the box (for MVT encoding)
+        with db_connection() as db_con:
+            # The core MVT generation query
+            # We removed the area filter to ensure full coverage
+            query = f"""
+                WITH
+                bounds_box AS (
+                    -- 1. Use Web Mercator tile bounds (EPSG:3857)
+                    -- Compute a Box2D for MVT encoding; keep the intersects predicate inline to hit RTREE.
+                    SELECT
+                        ST_Extent(ST_TileEnvelope({z}, {x}, {y})) AS box
+                ),
+                features AS (
+                    -- 2. Select features that intersect with the tile bounds
+                    SELECT
+                        t.gid,
+                        t.clave,
+                        t.uso_suelo,
+                        -- 3. Use the full ST_AsMVTGeom signature for robustness
+                        ST_AsMVTGeom(
+                            ST_Simplify(t.geometry, {simplification_tolerance}),
+                            (SELECT box FROM bounds_box),
+                            4096, -- Extent
+                            256,  -- Buffer
+                            true  -- Clip Geom
+                        ) AS mvt_geom
+                    FROM {TABLE_NAME} t
+                    WHERE ST_Intersects(t.geometry, ST_TileEnvelope({z}, {x}, {y}))
+                )
+                -- 5. Aggregate the clipped geometries into a single MVT layer
                 SELECT
-                    ST_TileEnvelope({z}, {x}, {y}) AS geom,
-                    ST_Extent(ST_TileEnvelope({z}, {x}, {y})) AS box
-            ),
-            features AS (
-                -- 2. Select features that intersect with the tile bounds
-                SELECT
-                    t.gid,
-                    t.clave,
-                    t.uso_suelo,
-                    -- 3. Use the full ST_AsMVTGeom signature for robustness
-                    ST_AsMVTGeom(
-                        ST_Simplify(t.geometry, {simplification_tolerance}),
-                        (SELECT box FROM bounds_box),
-                        4096, -- Extent
-                        256,  -- Buffer
-                        true  -- Clip Geom
-                    ) AS mvt_geom
-                FROM {TABLE_NAME} t, bounds_box
-                WHERE ST_Intersects(t.geometry, bounds_box.geom)
-            )
-            -- 5. Aggregate the clipped geometries into a single MVT layer
-            SELECT
-                CASE
-                    WHEN COUNT(*) = 0 THEN NULL
-                    ELSE ST_AsMVT(sub, '{LAYER_NAME}')
-                END AS tile
-            FROM (
-                SELECT gid, clave, uso_suelo, mvt_geom FROM features
-                WHERE mvt_geom IS NOT NULL
-            ) AS sub;
-        """
+                    CASE
+                        WHEN COUNT(*) = 0 THEN NULL
+                        ELSE ST_AsMVT(sub, '{LAYER_NAME}')
+                    END AS tile
+                FROM (
+                    SELECT gid, clave, uso_suelo, mvt_geom FROM features
+                    WHERE mvt_geom IS NOT NULL
+                ) AS sub;
+            """
 
-        # Execute the query
-        result = db_con.execute(query).fetchone()
+            # Execute the query
+            result = db_con.execute(query).fetchone()
         
         if not result or not result[0]:
             return None
@@ -124,9 +123,9 @@ def health_check():
     Performs a health check on the database connection and returns the status.
     """
     try:
-        # A simple check to ensure the connection is alive and can execute a query
-        con = get_db_connection()
-        con.execute("SELECT 1;").fetchone()
+        # A simple check to ensure a pooled connection is alive and can execute a query
+        with db_connection() as con:
+            con.execute("SELECT 1;").fetchone()
         return {"status": "ok", "message": "Database connection is healthy."}
     except Exception as e:
         return {"status": "error", "message": f"Database connection failed: {e}"}

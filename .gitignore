@@ -57,3 +57,4 @@ package-lock.json
 # Project data
 data/*
 !data/.gitkeep
+data/mexico_city.duckdb

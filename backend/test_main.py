@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 import gzip
 from backend.main import app
-from backend.db import get_db_connection, TABLE_NAME
+from backend.db import db_connection, get_db_connection, release_db_connection, POOL_SIZE, TABLE_NAME
 
 # By using a 'with' statement, we ensure that the app's lifespan events
 # (startup and shutdown) are triggered during the tests.
@@ -37,11 +37,11 @@ def _tile_coords_for_point_3857(x: float, y: float, z: int) -> tuple[int, int]:
 def test_get_valid_tile():
     """Test requesting a valid, non-empty tile."""
     with TestClient(app) as client:
-        con = get_db_connection()
-        xmin, ymin, xmax, ymax = con.execute(
-            f"SELECT ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext) "
-            f"FROM (SELECT ST_Extent(geometry) AS ext FROM {TABLE_NAME});"
-        ).fetchone()
+        with db_connection() as con:
+            xmin, ymin, xmax, ymax = con.execute(
+                f"SELECT ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext) "
+                f"FROM (SELECT ST_Extent(geometry) AS ext FROM {TABLE_NAME});"
+            ).fetchone()
         x = (xmin + xmax) / 2
         y = (ymin + ymax) / 2
         tile_x, tile_y = _tile_coords_for_point_3857(x, y, VALID_TILE_Z)
@@ -82,3 +82,15 @@ def test_get_tile_invalid_zoom():
         invalid_high_zoom = 25
         response_high = client.get(f"/tiles/{invalid_high_zoom}/0/0.pbf")
         assert response_high.status_code == 404
+
+def test_connection_pool_borrows():
+    """Test borrowing and releasing all pooled connections."""
+    with TestClient(app):
+        borrowed = []
+        for _ in range(POOL_SIZE):
+            con = get_db_connection()
+            con.execute("SELECT ST_TileEnvelope(14, 0, 0);").fetchone()
+            borrowed.append(con)
+
+        for con in borrowed:
+            release_db_connection(con)
