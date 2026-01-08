@@ -2,6 +2,8 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
+from functools import lru_cache
+from typing import Optional
 from .db import init_db, close_db, get_db_connection, TABLE_NAME
 
 @asynccontextmanager
@@ -33,8 +35,83 @@ app.add_middleware(GZipMiddleware, minimum_size=1000) # Add GZipMiddleware
 # The name of the layer in the MVT tile
 LAYER_NAME = "cadastre_layer"
 # The minimum and maximum zoom levels this server will generate tiles for
-MIN_ZOOM = 8
+MIN_ZOOM = 14
 MAX_ZOOM = 18 # Matches frontend maxzoom
+
+def get_simplification_tolerance(z: int):
+    """
+    Returns the simplification tolerance based on the zoom level.
+    """
+    # Earth circumference in meters (Web Mercator)
+    circumference = 40075016.68
+    tile_size = 256
+    
+    # Resolution in meters per pixel
+    resolution = circumference / (tile_size * (2 ** z))
+    
+    # Simplification tolerance: 0.5 pixel
+    return resolution * 0.5
+
+@lru_cache(maxsize=2048)
+def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
+    """
+    Cached function to generate MVT data.
+    """
+    db_con = get_db_connection()
+    simplification_tolerance = get_simplification_tolerance(z)
+
+    try:
+        # The core MVT generation query
+        # We removed the area filter to ensure full coverage
+        query = f"""
+            WITH
+            bounds_box AS (
+                -- 1. Use Web Mercator tile bounds (EPSG:3857)
+                -- We compute both the geometry (for intersection) and the box (for MVT encoding)
+                SELECT
+                    ST_TileEnvelope({z}, {x}, {y}) AS geom,
+                    ST_Extent(ST_TileEnvelope({z}, {x}, {y})) AS box
+            ),
+            features AS (
+                -- 2. Select features that intersect with the tile bounds
+                SELECT
+                    t.gid,
+                    t.clave,
+                    t.uso_suelo,
+                    -- 3. Use the full ST_AsMVTGeom signature for robustness
+                    ST_AsMVTGeom(
+                        ST_Simplify(t.geometry, {simplification_tolerance}),
+                        (SELECT box FROM bounds_box),
+                        4096, -- Extent
+                        256,  -- Buffer
+                        true  -- Clip Geom
+                    ) AS mvt_geom
+                FROM {TABLE_NAME} t, bounds_box
+                WHERE ST_Intersects(t.geometry, bounds_box.geom)
+            )
+            -- 5. Aggregate the clipped geometries into a single MVT layer
+            SELECT
+                CASE
+                    WHEN COUNT(*) = 0 THEN NULL
+                    ELSE ST_AsMVT(sub, '{LAYER_NAME}')
+                END AS tile
+            FROM (
+                SELECT gid, clave, uso_suelo, mvt_geom FROM features
+                WHERE mvt_geom IS NOT NULL
+            ) AS sub;
+        """
+
+        # Execute the query
+        result = db_con.execute(query).fetchone()
+        
+        if not result or not result[0]:
+            return None
+
+        return result[0]
+
+    except Exception as e:
+        print(f"Error generating tile for z={z}, x={x}, y={y}: {e}")
+        return None
 
 @app.get("/")
 def read_root():
@@ -62,66 +139,15 @@ def get_tile(z: int, x: int, y: int):
     if not (MIN_ZOOM <= z <= MAX_ZOOM):
         return Response(status_code=404, content=f"Zoom level {z} is outside the supported range [{MIN_ZOOM}, {MAX_ZOOM}].")
 
-    db_con = get_db_connection()
+    raw_tile_data = generate_tile_content(z, x, y)
+    
+    if raw_tile_data is None:
+         # If no features are in this tile, return an empty response with a 204 status
+        return Response(status_code=204)
 
-    try:
-        # The core MVT generation query
-        # This query follows the pattern described in GeneralSpecs.md
-        query = f"""
-            WITH
-            bounds_box AS (
-                -- 1. Use Web Mercator tile bounds (EPSG:3857)
-                SELECT
-                    ST_TileEnvelope({z}, {x}, {y}) AS geom,
-                    ST_Extent(ST_TileEnvelope({z}, {x}, {y})) AS box
-            ),
-            features AS (
-                -- 2. Select features that intersect with the tile bounds
-                SELECT
-                    t.gid,
-                    t.clave,
-                    t.uso_suelo,
-                    -- 3. Use the full ST_AsMVTGeom signature for robustness, passing the BOX_2D
-                    ST_AsMVTGeom(
-                        t.geometry,
-                        (SELECT box FROM bounds_box), -- Pass the pre-calculated BOX_2D
-                        4096, -- Extent
-                        256,  -- Buffer
-                        true  -- Clip Geom
-                    ) AS mvt_geom
-                FROM {TABLE_NAME} t, bounds_box
-                WHERE ST_Intersects(t.geometry, bounds_box.geom)
-            )
-            -- 5. Aggregate the clipped geometries into a single MVT layer
-            SELECT
-                CASE
-                    WHEN COUNT(*) = 0 THEN NULL
-                    ELSE ST_AsMVT(sub, '{LAYER_NAME}')
-                END AS tile
-            FROM (
-                SELECT gid, clave, uso_suelo, mvt_geom FROM features
-                WHERE mvt_geom IS NOT NULL
-            ) AS sub;
-        """
-
-        # Execute the query
-        result = db_con.execute(query).fetchone()
-        
-        if not result or not result[0]:
-            # If no features are in this tile, return an empty response with a 204 status
-            return Response(status_code=204)
-
-        # The result is a bytes object containing the MVT data (not gzipped by DuckDB)
-        raw_tile_data = result[0]
-        
-        # FastAPI's GZipMiddleware will handle the gzipping and Content-Encoding header
-        return Response(
-            content=raw_tile_data,
-            media_type="application/vnd.mapbox-vector-tile"
-            # No manual Content-Encoding: gzip header here, GZipMiddleware handles it
-        )
-
-    except Exception as e:
-        # Log the error and return an internal server error
-        print(f"Error generating tile for z={z}, x={x}, y={y}: {e}")
-        return Response(status_code=500, content=f"An internal error occurred: {e}")
+    # FastAPI's GZipMiddleware will handle the gzipping and Content-Encoding header
+    return Response(
+        content=raw_tile_data,
+        media_type="application/vnd.mapbox-vector-tile"
+        # No manual Content-Encoding: gzip header here, GZipMiddleware handles it
+    )

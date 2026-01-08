@@ -91,6 +91,10 @@ def init_db():
         CREATE OR REPLACE TABLE {TABLE_NAME} AS
         SELECT * FROM read_parquet('{GEOPARQUET_PATH}');
     """)
+
+    # Create spatial index
+    print("Creating spatial index...")
+    con.execute(f"CREATE INDEX IF NOT EXISTS idx_geometry ON {TABLE_NAME} USING RTREE (geometry);")
     
     # Verify data loading
     count = con.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};").fetchone()[0]
