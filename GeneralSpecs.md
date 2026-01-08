@@ -59,13 +59,16 @@ For `GET /tiles/{source}/{z}/{x}/{y}.pbf`:
 
 ### Minimal safe model
 
-- Small connection pool
+- Small connection pool (per-request borrow/return)
 - Each connection:
   - Loads spatial on creation
   - Is used by one request at a time
 
 **Rule:**  
 Every DuckDB connection must explicitly load `spatial`.
+
+**Note:**  
+If a pool is used, DuckDB must be file-backed so all connections share the same tables and indexes.
 
 ---
 

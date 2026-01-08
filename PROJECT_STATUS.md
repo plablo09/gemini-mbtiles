@@ -25,6 +25,8 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   **Backend:**
     -   Serves MVT tiles via FastAPI + DuckDB.
     -   **Optimizations:** Uses `RTREE` spatial index, `ST_Simplify` (dynamic tolerance), and in-memory LRU caching (`@lru_cache`).
+    -   **Connection Handling:** Switched to a small DuckDB connection pool with per-connection spatial loading and sanity checks to handle concurrent tile requests.
+    -   **Storage:** Uses a file-backed DuckDB at `data/mexico_city.duckdb` so pooled connections share the same data.
     -   **Configuration:** `MIN_ZOOM` set to 14 to prevent server overload. Area filtering is currently disabled to ensure full data visibility.
     -   **Robustness:** Fixed Python 3.9 type hinting issues (`Optional[bytes]`).
 -   **Frontend:**
@@ -49,7 +51,11 @@ This document tracks the execution plan, progress, and key technical solutions f
     -   **Spatial Index:** Implemented `CREATE INDEX ... USING RTREE (geometry)` on the in-memory DuckDB table.
     -   **Zoom Limits:** Restricted `MIN_ZOOM` to **14**. Cadastral lots are too small to be useful at Z<14, and rendering them as individual vectors is prohibitively expensive without pre-generalized aggregations.
     -   **Simplification:** Tuned `ST_Simplify` to `0.5 * resolution`.
-    -   **Caching:** Added `@lru_cache(maxsize=2048)` to the tile generation function.
+-   **Caching:** Added `@lru_cache(maxsize=2048)` to the tile generation function.
+
+#### 2. Concurrency & Pooling
+-   **Issue:** Random tile failures during MapLibre panning/zooming due to concurrent requests against a single DuckDB connection.
+-   **Solution:** Added a small connection pool and moved DuckDB to a file-backed DB to safely share state across pooled connections.
 
 #### 2. Frontend Integration Fixes
 -   **MapLibre Error:** `ReferenceError: Can't find variable: maplibregl`.
