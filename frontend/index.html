@@ -12,12 +12,13 @@
 <body>
 
     <!-- The div where the map will be rendered -->
-    <div id='map'></div>
-
+    <div id="map"></div>
+    <div id="zoom-level" style="position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 5px 10px; border-radius: 4px; font-family: sans-serif; font-size: 12px; z-index: 1000; box-shadow: 0 0 0 2px rgba(0,0,0,0.1);">
+        Zoom: <span id="zoom-value"></span>
+    </div>
     <!-- MapLibre GL JS Library -->
-    <script src='https://unpkg.com/maplibre-gl/dist/maplibre-gl.js'></script>
-    <!-- Local JavaScript -->
-    <script src='map.js'></script>
+    <script src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'></script>
+    <script src="map.js"></script>
 
 </body>
 </html>
