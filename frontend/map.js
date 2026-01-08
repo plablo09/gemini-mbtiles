@@ -20,7 +20,7 @@ const map = new maplibregl.Map({
             // Our vector tile source from the local backend
             'cadastre': {
                 'type': 'vector',
-                'tiles': ['http://127.0.0.1:8000/tiles/{z}/{x}/{y}.pbf'],
+                'tiles': ['/tiles/{z}/{x}/{y}.pbf'],
                 'minzoom': 14, // Only show parcels from Z14 onwards
                 'maxzoom': 18
             }

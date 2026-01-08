@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from starlette.middleware.gzip import GZipMiddleware # Import GZipMiddleware
 from functools import lru_cache
+import os
 from typing import Optional
 from .db import init_db, close_db, db_connection, TABLE_NAME
 
@@ -112,11 +114,6 @@ def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
         print(f"Error generating tile for z={z}, x={x}, y={y}: {e}")
         return None
 
-@app.get("/")
-def read_root():
-    """Returns a welcome message."""
-    return {"message": "Welcome to the Mexico City Cadastral Map Tile Server!"}
-
 @app.get("/health")
 def health_check():
     """
@@ -150,3 +147,8 @@ def get_tile(z: int, x: int, y: int):
         media_type="application/vnd.mapbox-vector-tile"
         # No manual Content-Encoding: gzip header here, GZipMiddleware handles it
     )
+
+# Mount the frontend directory to serve static files
+# We mount this last so that specific API routes defined above (like /tiles and /health) take precedence.
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

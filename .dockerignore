@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+uvicorn.log
+frontend.log
+backend.log
+test_duckdb.py
+debug_*.py
+AGENTS.md
+conversation_log.md
+GeneralSpecs.md
+PROJECT_STATUS.md

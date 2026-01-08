@@ -104,19 +104,25 @@ def init_db():
     # Perform sanity checks *after* loading the extension
     _perform_sanity_checks(bootstrap_con)
 
-    # Load data from GeoParquet file
-    print(f"Loading data from {GEOPARQUET_PATH} into table '{TABLE_NAME}'...")
-    if not os.path.exists(GEOPARQUET_PATH):
-        raise FileNotFoundError(f"GeoParquet file not found at: {GEOPARQUET_PATH}. Please run prepare_data.py first.")
-    
-    bootstrap_con.execute(f"""
-        CREATE OR REPLACE TABLE {TABLE_NAME} AS
-        SELECT * FROM read_parquet('{GEOPARQUET_PATH}');
-    """)
+    # Check if table already exists to avoid reloading data
+    table_exists = bootstrap_con.execute(f"SELECT count(*) FROM information_schema.tables WHERE table_name = '{TABLE_NAME}'").fetchone()[0] > 0
 
-    # Create spatial index
-    print("Creating spatial index...")
-    bootstrap_con.execute(f"CREATE INDEX IF NOT EXISTS idx_geometry ON {TABLE_NAME} USING RTREE (geometry);")
+    if table_exists:
+        print(f"Table '{TABLE_NAME}' already exists. Skipping data load.")
+    else:
+        # Load data from GeoParquet file
+        print(f"Loading data from {GEOPARQUET_PATH} into table '{TABLE_NAME}'...")
+        if not os.path.exists(GEOPARQUET_PATH):
+            raise FileNotFoundError(f"GeoParquet file not found at: {GEOPARQUET_PATH}. Please run prepare_data.py first.")
+        
+        bootstrap_con.execute(f"""
+            CREATE OR REPLACE TABLE {TABLE_NAME} AS
+            SELECT * FROM read_parquet('{GEOPARQUET_PATH}');
+        """)
+
+        # Create spatial index
+        print("Creating spatial index...")
+        bootstrap_con.execute(f"CREATE INDEX IF NOT EXISTS idx_geometry ON {TABLE_NAME} USING RTREE (geometry);")
     
     # Verify data loading
     count = bootstrap_con.execute(f"SELECT COUNT(*) FROM {TABLE_NAME};").fetchone()[0]
