@@ -25,8 +25,14 @@ p1 = Polygon([
 ])
 
 # Create a GeoDataFrame
+# We include 'gid', 'clave', and 'uso_suelo' because the backend query explicitly selects them.
 gdf = gpd.GeoDataFrame(
-    {'id': [1], 'geometry': [p1]},
+    {
+        'gid': [1], 
+        'clave': ['TEST-CLAVE-001'],
+        'uso_suelo': ['H/3/30'],
+        'geometry': [p1]
+    },
     crs="EPSG:3857"
 )
 

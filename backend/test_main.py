@@ -8,11 +8,13 @@ from backend.db import db_connection, get_db_connection, release_db_connection, 
 # (startup and shutdown) are triggered during the tests.
 # This will initialize the database connection.
 def test_read_root():
-    """Test the root endpoint."""
+    """Test the root endpoint serving the frontend."""
     with TestClient(app) as client:
         response = client.get("/")
         assert response.status_code == 200
-        assert response.json() == {"message": "Welcome to the Mexico City Cadastral Map Tile Server!"}
+        # Check that we are getting HTML content (the index.html)
+        assert "text/html" in response.headers["content-type"]
+        assert "<!DOCTYPE html>" in response.text
 
 def test_health_check_ok():
     """Test the health check endpoint when the server is healthy."""
