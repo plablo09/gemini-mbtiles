@@ -43,6 +43,30 @@ docker stop gemini-mbtiles-container
 docker rm gemini-mbtiles-container
 ```
 
+## CI/CD & Data Management
+
+This project uses **GitHub Actions** for automated testing and deployment to **Google Cloud Run**.
+
+### Architecture
+-   **CI (Continuous Integration):** Runs on every push. It creates a synthetic "dummy" dataset (single polygon) to test the API and tile generation logic without needing the large production dataset.
+-   **CD (Continuous Deployment):** Runs on pushes to `main`. It downloads the full production database (`mexico_city.duckdb`) from a secure **Google Cloud Storage (GCS)** bucket and bakes it into the Docker image before deploying to Cloud Run.
+
+### Updating Production Data
+The production database is too large to be stored in Git. To update the data served by the application:
+
+1.  **Update Local Data:**
+    Run your data preparation scripts (e.g., `prepare_data.py`) to update `data/mexico_city.duckdb`.
+
+2.  **Upload to GCS:**
+    Use the helper script to upload your local database to the production bucket:
+    ```bash
+    ./scripts/deploy_data.sh
+    ```
+    *Note: You need Google Cloud SDK installed and authenticated.*
+
+3.  **Trigger Deployment:**
+    Push a commit to the `main` branch. The CD pipeline will pick up the new database file from GCS during the build process.
+
 ## Local Development (Without Docker)
 
 1.  **Create a virtual environment:**

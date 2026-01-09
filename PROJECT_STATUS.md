@@ -37,25 +37,20 @@ Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote
 
 ## 4. Current Status
 
--   **Backend:**
-    -   Serves MVT tiles via FastAPI + DuckDB.
-    -   **Optimizations:** Uses `RTREE` spatial index, `ST_Simplify` (dynamic tolerance), and in-memory LRU caching (`@lru_cache`).
-    -   **Connection Handling:** Switched to a small DuckDB connection pool with per-connection spatial loading and sanity checks to handle concurrent tile requests.
-    -   **Storage:** Uses a file-backed DuckDB at `data/mexico_city.duckdb` so pooled connections share the same data.
-    -   **Configuration:** `MIN_ZOOM` set to 14 to prevent server overload. Area filtering is currently disabled to ensure full data visibility.
-    -   **Robustness:** Fixed Python 3.9 type hinting issues (`Optional[bytes]`).
--   **Frontend:**
-    -   Displays tiles using MapLibre GL JS.
-    -   **UX:** Includes OSM Raster Basemap and a custom Zoom Level indicator.
-    -   **Configuration:** Starts at Zoom 14 to match backend capabilities.
--   **Data:**
-    -   `data/mexico_city.cleaned.3857.geoparquet` is the verified source of truth (EPSG:3857).
+-   **Backend:** Fully functional FastAPI + DuckDB tile server. Optimized with RTREE index and caching.
+-   **Frontend:** MapLibre GL JS viewer with basemap and zoom controls.
+-   **Infrastructure:**
+    -   Containerized (Docker).
+    -   Deployed on Google Cloud Run.
+    -   **CI/CD:** Automated testing and deployment pipeline via GitHub Actions.
+    -   **Data:** Production data hosted in GCS (`gs://mexico-city-cadastre-assets`), decoupled from code repository size limits.
+-   **Data:** `data/mexico_city.cleaned.3857.geoparquet` is the source of truth (EPSG:3857).
 
-**Next Step:** Containerization (Docker) to package the application for deployment.
+**Next Step:** Optional DNS configuration or project wrap-up.
 
 ---
 
-## 3. Key Technical Decisions & Troubleshooting Log
+## 5. Key Technical Decisions & Troubleshooting Log
 
 ### Session: Jan 8, 2026 - Performance & Stability
 

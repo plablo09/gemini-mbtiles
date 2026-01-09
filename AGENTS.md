@@ -14,6 +14,21 @@
 - `pytest` run backend tests (expects `data/mexico_city.cleaned.3857.geoparquet` to exist).
 - From repo root, `nohup ./.venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 &` starts the API in the background (logs to `uvicorn.log`).
 - From `frontend/`, `python3 -m http.server` serves the viewer for local development.
+- `scripts/deploy_data.sh` uploads the local DuckDB database to the production GCS bucket (requires `gcloud` auth).
+
+## CI/CD & Deployment Architecture
+- **Platform:** GitHub Actions → Google Cloud Run.
+- **Data Strategy:** "Remote Artifact" pattern. The real `mexico_city.duckdb` (~1.2GB) is too large for git.
+    - **Production:** Database resides in GCS bucket `gs://mexico-city-cadastre-assets`.
+    - **Deployment:** The CD job downloads the DB from GCS and bakes it into the Docker image.
+    - **Testing:** The CI job uses `create_test_data.py` to generate a lightweight "synthetic" GeoParquet file (single polygon) to verify API logic without needing the full dataset.
+- **Workflow (`.github/workflows/ci-cd.yml`):**
+    - **CI (Test):** Runs on all pushes. Generates dummy data -> Runs `pytest` -> verifying code integrity.
+    - **CD (Deploy):** Runs on push to `main`. Downloads real DB -> Builds Docker Image -> Deploys to Cloud Run.
+- **Helper Scripts:**
+    - `create_test_data.py`: Generates dummy data for CI.
+    - `init_ci_db.py`: Bootstraps a DuckDB file from the dummy data for Docker build verification in CI.
+    - `scripts/deploy_data.sh`: Manual utility to update the production database in GCS from local.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation, `snake_case` for functions/variables, and `UPPER_SNAKE_CASE` for constants.
