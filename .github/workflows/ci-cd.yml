@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - '**'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches:
       - '**'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
 
 env:
   PROJECT_ID: mexico-city-cadastre-map
