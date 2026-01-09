@@ -15,12 +15,27 @@ This document tracks the execution plan, progress, and key technical solutions f
 
 ### Phase 2: Deployment to Google Cloud with CI/CD
 -   [x] **Step 6: Google Cloud Project Setup** (Project: `mexico-city-cadastre-map`)
--   [ ] **Step 7: GitHub Actions CI/CD Workflow**
+-   [x] **Step 7: GitHub Actions CI/CD Workflow**
+    -   Implemented split-pipeline:
+        -   **CI (Test):** Uses synthetic data generated on-the-fly to verify code/API health.
+        -   **CD (Deploy):** Pulls production database from Google Cloud Storage (`gs://mexico-city-cadastre-assets`).
 -   [ ] **Step 8: Finalization and DNS (Optional)**
+
+## 3. Data Management Workflow
+
+Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote Artifact" pattern:
+
+1.  **Local Updates:**
+    -   Run `python prepare_data.py` to regenerate `geoparquet`.
+    -   Restart local backend (rebuilds `duckdb`).
+2.  **Push to Production:**
+    -   Run `scripts/deploy_data.sh` to upload the local database to GCS.
+    -   Commit and push code changes to `main` to trigger a deployment.
+    -   The CD pipeline will download the updated database from GCS during the build.
 
 ---
 
-## 2. Current Status
+## 4. Current Status
 
 -   **Backend:**
     -   Serves MVT tiles via FastAPI + DuckDB.
