@@ -31,6 +31,7 @@ gdf = gpd.GeoDataFrame(
         'gid': [1], 
         'clave': ['TEST-CLAVE-001'],
         'uso_suelo': ['H/3/30'],
+        'no_niveles': [3],
         'geometry': [p1]
     },
     crs="EPSG:3857"

@@ -1,3 +1,6 @@
+// Version control for tile caching. Bump this when backend data schema changes.
+const TILE_VERSION = 'v1.1';
+
 // Initialize the map
 const map = new maplibregl.Map({
     container: 'map', // The ID of the div in index.html
@@ -20,7 +23,7 @@ const map = new maplibregl.Map({
             // Our vector tile source from the local backend
             'cadastre': {
                 'type': 'vector',
-                'tiles': [window.location.origin + '/tiles/{z}/{x}/{y}.pbf'],
+                'tiles': [window.location.origin + `/tiles/{z}/{x}/{y}.pbf?v=${TILE_VERSION}`],
                 'minzoom': 14, // Only show parcels from Z14 onwards
                 'maxzoom': 18
             }
@@ -56,6 +59,22 @@ const map = new maplibregl.Map({
                     'line-color': '#003',
                     'line-width': 0.5
                 }
+            },
+            // 3D Extrusion layer (initially hidden/invisible)
+            {
+                'id': 'cadastre-lots-extrusion',
+                'type': 'fill-extrusion',
+                'source': 'cadastre',
+                'source-layer': 'cadastre_layer',
+                'paint': {
+                    'fill-extrusion-color': '#088',
+                    'fill-extrusion-height': ['*', ['coalesce', ['get', 'no_niveles'], 1], 3.5],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.8
+                },
+                'layout': {
+                    'visibility': 'none'
+                }
             }
         ]
     },
@@ -74,3 +93,39 @@ function updateZoom() {
 
 map.on('load', updateZoom);
 map.on('move', updateZoom);
+
+// View Toggle Logic
+let is3D = false;
+const toggleBtn = document.getElementById('view-toggle');
+
+toggleBtn.addEventListener('click', () => {
+    is3D = !is3D;
+    
+    if (is3D) {
+        // Switch to 3D
+        map.easeTo({
+            pitch: 60,
+            bearing: -20,
+            duration: 1000
+        });
+        
+        map.setLayoutProperty('cadastre-lots-extrusion', 'visibility', 'visible');
+        map.setLayoutProperty('cadastre-lots-fill', 'visibility', 'none');
+        map.setLayoutProperty('cadastre-lots-outline', 'visibility', 'none');
+        
+        toggleBtn.innerText = 'Switch to 2D';
+    } else {
+        // Switch to 2D
+        map.easeTo({
+            pitch: 0,
+            bearing: 0,
+            duration: 1000
+        });
+        
+        map.setLayoutProperty('cadastre-lots-extrusion', 'visibility', 'none');
+        map.setLayoutProperty('cadastre-lots-fill', 'visibility', 'visible');
+        map.setLayoutProperty('cadastre-lots-outline', 'visibility', 'visible');
+        
+        toggleBtn.innerText = 'Switch to 3D';
+    }
+});

@@ -6,6 +6,7 @@ A high-performance vector tile server for Mexico City's cadastral data, built wi
 
 -   **Vector Tiles (MVT):** Serves Mapbox Vector Tiles dynamically from a DuckDB database.
 -   **Spatial Indexing:** Uses DuckDB's `RTREE` index for fast spatial queries.
+-   **3D Visualization:** Extrudes cadastral lots based on the number of levels (`no_niveles`) with a seamless 2D/3D toggle.
 -   **Frontend Viewer:** A lightweight MapLibre GL JS client to visualize the data.
 -   **Containerized:** Fully Dockerized for easy deployment.
 

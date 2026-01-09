@@ -16,10 +16,13 @@ This document tracks the execution plan, progress, and key technical solutions f
 ### Phase 2: Deployment to Google Cloud with CI/CD
 -   [x] **Step 6: Google Cloud Project Setup** (Project: `mexico-city-cadastre-map`)
 -   [x] **Step 7: GitHub Actions CI/CD Workflow**
-    -   Implemented split-pipeline:
-        -   **CI (Test):** Uses synthetic data generated on-the-fly to verify code/API health.
-        -   **CD (Deploy):** Pulls production database from Google Cloud Storage (`gs://mexico-city-cadastre-assets`).
 -   [ ] **Step 8: Finalization and DNS (Optional)**
+
+### Phase 3: 3D Visualization & Advanced Features
+-   [x] **Step 9: Data Analysis for Extrusion** (Identified `no_niveles`)
+-   [x] **Step 10: Backend Support for 3D** (Added `no_niveles` to MVT)
+-   [x] **Step 11: Frontend 3D Toggle & Fill-Extrusion Layer**
+-   [x] **Step 12: Performance Optimization for 3D View** (Implemented Cache-Control & Versioning)
 
 ## 3. Data Management Workflow
 
@@ -37,20 +40,43 @@ Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote
 
 ## 4. Current Status
 
--   **Backend:** Fully functional FastAPI + DuckDB tile server. Optimized with RTREE index and caching.
--   **Frontend:** MapLibre GL JS viewer with basemap and zoom controls.
+-   **Backend:**
+    -   Fully functional FastAPI + DuckDB tile server.
+    -   **Caching:** `Cache-Control: public, max-age=86400` implemented for static tiles.
+    -   **Schema:** Serves `no_niveles` (height) attribute cast to integer.
+-   **Frontend:**
+    -   MapLibre GL JS viewer with **3D Toggle**.
+    -   **Versioning:** Uses `TILE_VERSION` constant (`v1.1`) to manage browser cache during schema updates.
+    -   **Visualization:** Renders `fill-extrusion` layer based on `no_niveles * 3.5m`.
 -   **Infrastructure:**
     -   Containerized (Docker).
     -   Deployed on Google Cloud Run.
     -   **CI/CD:** Automated testing and deployment pipeline via GitHub Actions.
-    -   **Data:** Production data hosted in GCS (`gs://mexico-city-cadastre-assets`), decoupled from code repository size limits.
+    -   **Data:** Production data hosted in GCS.
 -   **Data:** `data/mexico_city.cleaned.3857.geoparquet` is the source of truth (EPSG:3857).
 
-**Next Step:** Optional DNS configuration or project wrap-up.
+**Next Step:** Project finalized. Maintenance mode.
 
 ---
 
 ## 5. Key Technical Decisions & Troubleshooting Log
+
+### Session: Jan 9, 2026 - 3D Feature Implementation & Troubleshooting
+
+#### 1. 3D Extrusion Implementation
+-   **Goal:** Extrude polygons based on `no_niveles` (number of levels).
+-   **Implementation:**
+    -   Added `no_niveles` to backend MVT query.
+    -   Added `fill-extrusion` layer to MapLibre style with a 2D/3D toggle button.
+    -   Mapped height to `no_niveles * 3.5m`.
+
+#### 2. The "Missing Attribute" Mystery (SOLVED)
+-   **Issue:** Browser persisted in showing old tile schema (missing `no_niveles`) despite backend code updates, even with incognito mode initially failing to show changes (likely due to deep caching or race conditions in testing).
+-   **Resolution:**
+    -   **Backend:** Added explicit `Cache-Control: public, max-age=86400` to tile responses.
+    -   **Frontend:** Implemented a `TILE_VERSION` constant (e.g., `?v=v1.1`) in `map.js` to force-bust browser cache whenever the backend schema changes.
+    -   **Code:** Verified correct SQL with `COALESCE(CAST(no_niveles AS INTEGER), 0)` to ensure robust MVT encoding.
+-   **Result:** 3D extrusion now renders correctly with varied heights.
 
 ### Session: Jan 8, 2026 - Performance & Stability
 

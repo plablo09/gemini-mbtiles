@@ -30,6 +30,12 @@
     - `init_ci_db.py`: Bootstraps a DuckDB file from the dummy data for Docker build verification in CI.
     - `scripts/deploy_data.sh`: Manual utility to update the production database in GCS from local.
 
+## Frontend Development & Caching
+- **Versioning Strategy:** Browser caching of MVT tiles is aggressive.
+- **Mechanism:** `frontend/map.js` defines a `TILE_VERSION` constant (e.g., `v1.1`).
+- **Usage:** This version string is appended to tile requests (`/tiles/...pbf?v=v1.1`).
+- **When to Bump:** Update `TILE_VERSION` whenever you change the backend SQL query or MVT schema (e.g., adding a new column) to force all users to fetch fresh tiles.
+
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation, `snake_case` for functions/variables, and `UPPER_SNAKE_CASE` for constants.
 - JavaScript follows 4-space indentation and `lowerCamelCase` for variables and functions.

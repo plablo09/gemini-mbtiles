@@ -39,6 +39,8 @@ LAYER_NAME = "cadastre_layer"
 # The minimum and maximum zoom levels this server will generate tiles for
 MIN_ZOOM = 14
 MAX_ZOOM = 18 # Matches frontend maxzoom
+# Cache version used to bust the in-process tile cache when schema changes
+CACHE_VERSION = os.getenv("TILE_CACHE_VERSION", "1")
 
 def get_simplification_tolerance(z: int):
     """
@@ -55,7 +57,7 @@ def get_simplification_tolerance(z: int):
     return resolution * 0.5
 
 @lru_cache(maxsize=2048)
-def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
+def generate_tile_content(z: int, x: int, y: int, cache_version: str) -> Optional[bytes]:
     """
     Cached function to generate MVT data.
     """
@@ -79,6 +81,7 @@ def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
                         t.gid,
                         t.clave,
                         t.uso_suelo,
+                        COALESCE(CAST(t.no_niveles AS INTEGER), 0) AS no_niveles, -- Force non-null
                         -- 3. Use the full ST_AsMVTGeom signature for robustness
                         ST_AsMVTGeom(
                             ST_Simplify(t.geometry, {simplification_tolerance}),
@@ -97,7 +100,7 @@ def generate_tile_content(z: int, x: int, y: int) -> Optional[bytes]:
                         ELSE ST_AsMVT(sub, '{LAYER_NAME}')
                     END AS tile
                 FROM (
-                    SELECT gid, clave, uso_suelo, mvt_geom FROM features
+                    SELECT gid, clave, uso_suelo, no_niveles, mvt_geom FROM features
                     WHERE mvt_geom IS NOT NULL
                 ) AS sub;
             """
@@ -128,23 +131,39 @@ def health_check():
         return {"status": "error", "message": f"Database connection failed: {e}"}
 
 @app.get("/tiles/{z}/{x}/{y}.pbf", response_class=Response)
-def get_tile(z: int, x: int, y: int):
+def get_tile(z: int, x: int, y: int, v: Optional[str] = None):
     """
     Generates and returns a Mapbox Vector Tile (MVT) for the given zoom, x, and y coordinates.
     """
-    if not (MIN_ZOOM <= z <= MAX_ZOOM):
-        return Response(status_code=404, content=f"Zoom level {z} is outside the supported range [{MIN_ZOOM}, {MAX_ZOOM}].")
+    cache_version = v or CACHE_VERSION
+    headers = {
+        "X-Tile-Cache-Version": cache_version,
+        "X-Tile-Cache-Key": f"{z}/{x}/{y}/{cache_version}",
+        "X-Tile-Server": "fastapi",
+    }
 
-    raw_tile_data = generate_tile_content(z, x, y)
+    if not (MIN_ZOOM <= z <= MAX_ZOOM):
+        return Response(
+            status_code=404,
+            content=f"Zoom level {z} is outside the supported range [{MIN_ZOOM}, {MAX_ZOOM}].",
+            headers=headers,
+        )
+
+    raw_tile_data = generate_tile_content(z, x, y, cache_version)
     
     if raw_tile_data is None:
          # If no features are in this tile, return an empty response with a 204 status
-        return Response(status_code=204)
+        return Response(status_code=204, headers=headers)
+
+    # Add Cache-Control header
+    # We cache tiles for 1 day (86400 seconds) because they are static
+    headers["Cache-Control"] = "public, max-age=86400"
 
     # FastAPI's GZipMiddleware will handle the gzipping and Content-Encoding header
     return Response(
         content=raw_tile_data,
-        media_type="application/vnd.mapbox-vector-tile"
+        media_type="application/vnd.mapbox-vector-tile",
+        headers=headers,
         # No manual Content-Encoding: gzip header here, GZipMiddleware handles it
     )
 
