@@ -25,7 +25,7 @@ COPY frontend/ frontend/
 COPY data/mexico_city.duckdb data/mexico_city.duckdb
 
 # Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 8080
 
-# Command to run the application
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application using the PORT environment variable (required for Cloud Run)
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

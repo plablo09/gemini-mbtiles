@@ -14,7 +14,7 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   [x] **Step 5: Containerization**
 
 ### Phase 2: Deployment to Google Cloud with CI/CD
--   [ ] **Step 6: Google Cloud Project Setup**
+-   [x] **Step 6: Google Cloud Project Setup** (Project: `mexico-city-cadastre-map`)
 -   [ ] **Step 7: GitHub Actions CI/CD Workflow**
 -   [ ] **Step 8: Finalization and DNS (Optional)**
 
@@ -82,6 +82,23 @@ This document tracks the execution plan, progress, and key technical solutions f
     -   Built image `gemini-mbtiles`.
     -   Ran container and verified `/health` and `/tiles/14/...` endpoints via `curl`.
     -   Confirmed frontend assets (`index.html`, `style.css`, `map.js`) are served.
+
+### Session: Jan 8, 2026 (Night) - Google Cloud Setup
+
+#### 1. Project Initialization
+-   **Project:** Created new GCP project `mexico-city-cadastre-map` and linked billing.
+-   **Tooling:** Installed Google Cloud SDK via Homebrew and authenticated.
+-   **Infrastructure:**
+    -   Enabled `run.googleapis.com` (Cloud Run) and `artifactregistry.googleapis.com`.
+    -   Created Artifact Registry repository `containers` in `us-central1`.
+
+#### 2. Manual Deployment & Tuning
+-   **Platform Build:** Rebuilt Docker image for `linux/amd64` to match Cloud Run architecture.
+-   **Configuration:** Updated `Dockerfile` to respect the `PORT` env var (defaulting to 8000).
+-   **Deployment:**
+    -   Pushed image to Artifact Registry.
+    -   Deployed to Cloud Run with `4Gi` memory (for DuckDB) and `2` vCPUs (for concurrency).
+    -   Verified the live application at `https://gemini-mbtiles-938940805151.us-central1.run.app`.
 
 ### Prior Troubleshooting (Summary)
 -   **Data Prep:** `zip://` URIs failed; switched to unzipping locally.
