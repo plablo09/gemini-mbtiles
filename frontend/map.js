@@ -1,6 +1,17 @@
 // Version control for tile caching. Bump this when backend data schema changes.
 const TILE_VERSION = 'v1.1';
 
+// Land use color palette
+const LAND_USE_COLORS = [
+    'match',
+    ['get', 'uso_suelo'],
+    'Habitacional', '#f39c12',
+    'Comercio', '#c0392b',
+    'Industrial', '#a020f0',
+    'Otros Usos', '#3bb2d0',
+    /* fallback */ '#cccccc'
+];
+
 // Initialize the map
 const map = new maplibregl.Map({
     container: 'map', // The ID of the div in index.html
@@ -44,8 +55,8 @@ const map = new maplibregl.Map({
                 'source-layer': 'cadastre_layer', // Must match the name in the backend
                 'layout': {},
                 'paint': {
-                    'fill-color': '#088',
-                    'fill-opacity': 0.4
+                    'fill-color': LAND_USE_COLORS,
+                    'fill-opacity': 0.6
                 }
             },
             // A separate layer for the outline
@@ -57,7 +68,8 @@ const map = new maplibregl.Map({
                 'layout': {},
                 'paint': {
                     'line-color': '#003',
-                    'line-width': 0.5
+                    'line-width': 0.5,
+                    'line-opacity': 0.3
                 }
             },
             // 3D Extrusion layer (initially hidden/invisible)
@@ -67,7 +79,7 @@ const map = new maplibregl.Map({
                 'source': 'cadastre',
                 'source-layer': 'cadastre_layer',
                 'paint': {
-                    'fill-extrusion-color': '#088',
+                    'fill-extrusion-color': LAND_USE_COLORS,
                     'fill-extrusion-height': ['*', ['coalesce', ['get', 'no_niveles'], 1], 3.5],
                     'fill-extrusion-base': 0,
                     'fill-extrusion-opacity': 0.8

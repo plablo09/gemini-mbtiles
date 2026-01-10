@@ -9,3 +9,31 @@ body {
     bottom: 0;
     width: 100%;
 }
+
+.legend {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
+    font-family: sans-serif;
+    font-size: 12px;
+    line-height: 18px;
+    color: #eee;
+    z-index: 1000;
+}
+
+.legend h4 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #fff;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    padding-bottom: 5px;
+}
+
+.legend div span {
+    border-radius: 50%;
+    display: inline-block;
+    height: 10px;
+    margin-right: 5px;
+    width: 10px;
+}

@@ -35,6 +35,7 @@
 - **Mechanism:** `frontend/map.js` defines a `TILE_VERSION` constant (e.g., `v1.1`).
 - **Usage:** This version string is appended to tile requests (`/tiles/...pbf?v=v1.1`).
 - **When to Bump:** Update `TILE_VERSION` whenever you change the backend SQL query or MVT schema (e.g., adding a new column) to force all users to fetch fresh tiles.
+- **Styling:** `map.js` uses `LAND_USE_COLORS` constant for categorical coloring. Legend HTML is in `index.html`.
 
 ## Coding Style & Naming Conventions
 - Python uses 4-space indentation, `snake_case` for functions/variables, and `UPPER_SNAKE_CASE` for constants.

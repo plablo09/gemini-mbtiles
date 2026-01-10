@@ -24,6 +24,11 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   [x] **Step 11: Frontend 3D Toggle & Fill-Extrusion Layer**
 -   [x] **Step 12: Performance Optimization for 3D View** (Implemented Cache-Control & Versioning)
 
+### Phase 4: Thematic Mapping & UX Improvements
+-   [x] **Step 13: Data Analysis for Coloring** (Identified `uso_suelo` categories)
+-   [x] **Step 14: Implement Categorical Coloring** (Habitacional=Orange, Comercio=Red, etc.)
+-   [x] **Step 15: Interactive Legend & Help UI** (Unified dark-themed controls)
+
 ## 3. Data Management Workflow
 
 Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote Artifact" pattern:
