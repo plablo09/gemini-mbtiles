@@ -81,6 +81,7 @@ def generate_tile_content(z: int, x: int, y: int, cache_version: str) -> Optiona
                         t.gid,
                         t.clave,
                         t.uso_suelo,
+                        t.alcaldia,
                         COALESCE(CAST(t.no_niveles AS INTEGER), 0) AS no_niveles, -- Force non-null
                         -- 3. Use the full ST_AsMVTGeom signature for robustness
                         ST_AsMVTGeom(
@@ -100,7 +101,7 @@ def generate_tile_content(z: int, x: int, y: int, cache_version: str) -> Optiona
                         ELSE ST_AsMVT(sub, '{LAYER_NAME}')
                     END AS tile
                 FROM (
-                    SELECT gid, clave, uso_suelo, no_niveles, mvt_geom FROM features
+                    SELECT gid, clave, uso_suelo, alcaldia, no_niveles, mvt_geom FROM features
                     WHERE mvt_geom IS NOT NULL
                 ) AS sub;
             """
