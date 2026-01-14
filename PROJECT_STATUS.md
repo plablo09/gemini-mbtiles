@@ -29,6 +29,11 @@ This document tracks the execution plan, progress, and key technical solutions f
 -   [x] **Step 14: Implement Categorical Coloring** (Habitacional=Orange, Comercio=Red, etc.)
 -   [x] **Step 15: Interactive Legend & Help UI** (Unified dark-themed controls)
 
+### Phase 5: Thematic Coloring by Borough
+-   [x] **Step 16: Backend Schema Update** (Included `alcaldia` column in MVT)
+-   [x] **Step 17: Frontend Color Palette Integration** (Added color-blind safe palettes for 16 boroughs)
+-   [x] **Step 18: UI Controls** (Added dropdown to switch between Land Use and Borough coloring)
+
 ## 3. Data Management Workflow
 
 Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote Artifact" pattern:
@@ -48,11 +53,13 @@ Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote
 -   **Backend:**
     -   Fully functional FastAPI + DuckDB tile server.
     -   **Caching:** `Cache-Control: public, max-age=86400` implemented for static tiles.
-    -   **Schema:** Serves `no_niveles` (height) attribute cast to integer.
+    -   **Schema:** Serves `no_niveles` (height) and `alcaldia` (borough) attributes.
 -   **Frontend:**
-    -   MapLibre GL JS viewer with **3D Toggle**.
-    -   **Versioning:** Uses `TILE_VERSION` constant (`v1.1`) to manage browser cache during schema updates.
-    -   **Visualization:** Renders `fill-extrusion` layer based on `no_niveles * 3.5m`.
+    -   MapLibre GL JS viewer with **3D Toggle** and **Coloring Mode Selector**.
+    -   **Versioning:** Uses `TILE_VERSION` constant (`v1.2`) to manage browser cache during schema updates.
+    -   **Visualization:** 
+        -   Renders `fill-extrusion` layer based on `no_niveles * 3.5m`.
+        -   Supports dynamic switching between **Land Use** (Set2) and **Borough** (Paired+Dark2) coloring.
 -   **Infrastructure:**
     -   Containerized (Docker).
     -   Deployed on Google Cloud Run.
@@ -65,6 +72,21 @@ Since the database (`mexico_city.duckdb`) is too large for git, we use a "Remote
 ---
 
 ## 5. Key Technical Decisions & Troubleshooting Log
+
+### Session: Jan 14, 2026 - Thematic Coloring by Borough
+
+#### 1. Feature Implementation
+-   **Goal:** Allow users to switch the map coloring between Land Use (*Uso de Suelo*) and Borough (*Alcaldia*).
+-   **Backend Update:**
+    -   Updated the SQL query in `backend/main.py` to include the `alcaldia` column in the MVT tiles.
+-   **Frontend Integration:**
+    -   **Color Palettes:** Integrated ColorBrewer palettes for accessibility.
+        -   *Land Use:* Used `Set2` (Qualitative, color-blind safe).
+        -   *Boroughs:* Used a combination of `Paired` and `Dark2` to cover all 16 boroughs with distinct colors.
+    -   **UI:** Added a dropdown selector to switch modes.
+    -   **Logic:** Implemented a `setThematicColoring` function to dynamically update `fill-color`, `fill-extrusion-color`, and the legend based on the selected mode.
+-   **Testing:**
+    -   Updated `create_test_data.py` to include a dummy `alcaldia` value, ensuring CI pipelines continue to pass with the new schema requirements.
 
 ### Session: Jan 9, 2026 - 3D Feature Implementation & Troubleshooting
 

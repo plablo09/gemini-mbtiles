@@ -116,3 +116,18 @@ Those tools are **GitHub Actions**, which are scripts that run on GitHub's serve
 ### Agent: Preproject to Web Mercator for tile serving
 
 *Updated the pipeline to produce `data/mexico_city.cleaned.3857.geoparquet`, reprojected from the cleaned file, and revalidated geometries after reprojection. Backend and tests now use 3857 data and `ST_TileEnvelope` in tile queries. Tests passed (`pytest`).*
+
+---
+### User: Implement Thematic Coloring by Borough
+
+> Ok I want to add a new thematic coloring based in the database attributes with tha ability of changing the attribute on user input. The firs thing I want to do is find a suitable attribute on the database
+
+### Agent: Analysis and Feature Implementation
+
+*   **Analysis:** Inspected database columns and identified `alcaldia` (borough) as a suitable categorical attribute.
+*   **Backend:** Updated `backend/main.py` SQL query to select and serve the `alcaldia` column in the MVT tiles.
+*   **Frontend:**
+    *   Updated `frontend/index.html` with a dropdown selector to switch between 'Land Use' and 'Borough' coloring modes.
+    *   Updated `frontend/map.js` to implement logic for dynamic layer restyling and legend updates.
+    *   Implemented color-blind safe palettes using ColorBrewer (`Set2` for Land Use, `Paired` + `Dark2` for Boroughs).
+*   **Testing:** Updated `create_test_data.py` to include the `alcaldia` column, ensuring CI compatibility.
