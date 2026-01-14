@@ -23,15 +23,17 @@
         <div style="background: rgba(0, 0, 0, 0.7); color: white; padding: 5px 10px; border-radius: 4px; font-size: 11px; box-shadow: 0 0 0 2px rgba(255,255,255,0.1); font-weight: normal;">
             Right-click + Drag to rotate/tilt
         </div>
+
+        <div style="margin-top: 5px;">
+            <select id="coloring-mode" style="background: rgba(0, 0, 0, 0.7); color: white; padding: 5px; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-size: 12px; width: 100%;">
+                <option value="uso_suelo">Color by Land Use</option>
+                <option value="alcaldia">Color by Borough</option>
+            </select>
+        </div>
         
         <!-- Legend moved here -->
         <div id="legend" class="legend">
-            <h4>Land Use</h4>
-            <div><span style="background-color: #f39c12"></span>Habitacional</div>
-            <div><span style="background-color: #c0392b"></span>Comercio</div>
-            <div><span style="background-color: #a020f0"></span>Industrial</div>
-            <div><span style="background-color: #3bb2d0"></span>Otros Usos</div>
-            <div><span style="background-color: #cccccc"></span>S/N</div>
+            <!-- Legend content will be populated by JavaScript -->
         </div>
     </div>
 
